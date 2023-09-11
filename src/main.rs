@@ -23,8 +23,8 @@ fn main() {
 	println!("starting build");
 	let exit_status = Command::new(cmd).args(&args[2..]).status();
 	println!("\n");
-	let time_taken = start_time.elapsed();
-	println!("Took {:?}", time_taken);
+	let time_taken = start_time.elapsed().unwrap().as_millis() as i64;
+	println!("Build took {}", printable_time(time_taken));
 
 	log(&start_time);
 
@@ -51,15 +51,22 @@ fn log(start: &SystemTime) -> Option<()> {
 			wasted += duration;
 		}
 	}
-	{
-		let sec = wasted / 1000 % 60;
-		let min = wasted / (60 * 1000) % 60;
-		let h = wasted / (60 * 60 * 1000);
-		println!("Total wasted today: {}h {}m {}s", h, min, sec);
-	}
-	{
-		let mut f = File::create("compiler_history.txt").unwrap();
-		f.write_all(history.as_bytes()).unwrap();
-	}
+	println!("Total wasted today: {}", printable_time(wasted));
+
+	let mut f = File::create("compiler_history.txt").unwrap();
+	f.write_all(history.as_bytes()).unwrap();
 	Some(())
+}
+
+fn printable_time(ms: i64) -> String {
+	let secs = ms / 1000 % 60;
+	let mins = ms / (60 * 1000) % 60;
+	let hours = ms / (60 * 60 * 1000);
+	if hours > 0 {
+		format!("{}h {}m {}s", hours, mins, secs)
+	} else if mins > 0 {
+		format!("{}m {}s", mins, secs)
+	} else {
+		format!("{}.{:03}s", secs, ms % 1000)
+	}
 }
