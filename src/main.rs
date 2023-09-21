@@ -13,20 +13,23 @@ fn main() {
 
 	let args: Vec<String> = env::args().collect();
 
-	println!("{:?}", args);
+	println!();
 	if args.len() < 2 {
-		println!("Not enough arguments.");
+		print_day();
 		return;
 	}
+	println!("{:?}", args);
 	let cmd = &args[1];
 
-	println!("starting build");
+	println!("Starting build");
 	let exit_status = Command::new(cmd).args(&args[2..]).status();
 	println!("\n");
 	let time_taken = start_time.elapsed().unwrap().as_millis() as i64;
 	println!("Build took {}", printable_time(time_taken));
 
-	log(&start_time);
+	log_single(&start_time);
+	print_day();
+	println!();
 
 	println!("{:?}", exit_status);
 	if let Some(status) = exit_status.ok().and_then(|s| s.code()) {
@@ -34,13 +37,24 @@ fn main() {
 	}
 }
 
-fn log(start: &SystemTime) -> Option<()> {
+fn log_single(start: &SystemTime) -> Option<()> {
 	let start_time = start.duration_since(UNIX_EPOCH).ok()?.as_millis();
 	let duration = start.elapsed().ok()?.as_millis();
 	let mut history = fs::read_to_string("compiler_history.txt").unwrap_or_default();
 	history.push_str(&format!("{}:{}\n", start_time, duration));
+	let mut f = File::create("compiler_history.txt").unwrap();
+	f.write_all(history.as_bytes()).unwrap();
+	Some(())
+}
 
+fn print_day() -> Option<()> {
+	let start_time = SystemTime::now()
+		.duration_since(UNIX_EPOCH)
+		.ok()?
+		.as_millis();
 	let today = NaiveDateTime::from_timestamp_millis(start_time as i64)?;
+	let history = fs::read_to_string("compiler_history.txt").unwrap_or_default();
+
 	let mut wasted = 0;
 	for line in history.lines() {
 		let (time, duration) = line.split_once(':')?;
@@ -52,9 +66,6 @@ fn log(start: &SystemTime) -> Option<()> {
 		}
 	}
 	println!("Total wasted today: {}", printable_time(wasted));
-
-	let mut f = File::create("compiler_history.txt").unwrap();
-	f.write_all(history.as_bytes()).unwrap();
 	Some(())
 }
 
