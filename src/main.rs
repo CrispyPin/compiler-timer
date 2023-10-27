@@ -56,16 +56,19 @@ fn print_day() -> Option<()> {
 	let history = fs::read_to_string("compiler_history.txt").unwrap_or_default();
 
 	let mut wasted = 0;
+	let mut wasted_today = 0;
 	for line in history.lines() {
 		let (time, duration) = line.split_once(':')?;
 		let time: i64 = time.parse().ok()?;
 		let duration: i64 = duration.parse().ok()?;
 		let date = NaiveDateTime::from_timestamp_millis(time)?;
+		wasted += duration;
 		if date.date() == today.date() {
-			wasted += duration;
+			wasted_today += duration;
 		}
 	}
-	println!("Total wasted today: {}", printable_time(wasted));
+	println!("Total wasted today: {}", printable_time(wasted_today));
+	println!("Total wasted: {}", printable_time(wasted));
 	Some(())
 }
 
