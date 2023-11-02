@@ -57,6 +57,7 @@ fn print_day() -> Option<()> {
 
 	let mut wasted = 0;
 	let mut wasted_today = 0;
+	let mut first_date = String::new();
 	for line in history.lines() {
 		let (time, duration) = line.split_once(':')?;
 		let time: i64 = time.parse().ok()?;
@@ -66,9 +67,12 @@ fn print_day() -> Option<()> {
 		if date.date() == today.date() {
 			wasted_today += duration;
 		}
+		if first_date.is_empty() {
+			first_date = format!("{:?}", date)[..10].to_owned();
+		}
 	}
 	println!("Total wasted today: {}", printable_time(wasted_today));
-	println!("Total wasted: {}", printable_time(wasted));
+	println!("Since {}: {}", first_date, printable_time(wasted));
 	Some(())
 }
 
