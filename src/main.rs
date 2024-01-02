@@ -3,12 +3,20 @@ use std::{
 	fs::{self, File},
 	io::Write,
 	process::{exit, Command},
-	time::{SystemTime, UNIX_EPOCH},
+	sync::mpsc::channel,
+	thread,
+	time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use chrono::NaiveDateTime;
 
 fn main() {
+	let (send_ctrlc, recv_ctrlc) = channel();
+	ctrlc::set_handler(move || {
+		send_ctrlc.send(()).unwrap();
+	})
+	.expect("Error setting Ctrl-C handler");
+
 	let start_time = SystemTime::now();
 
 	let args: Vec<String> = env::args().collect();
@@ -18,30 +26,50 @@ fn main() {
 		print_day();
 		return;
 	}
-	println!("{:?}", args);
-	let cmd = &args[1];
-
+	println!("{args:?}");
 	println!("Starting build");
-	let exit_status = Command::new(cmd).args(&args[2..]).status();
-	println!("\n");
-	let time_taken = start_time.elapsed().unwrap().as_millis() as i64;
-	println!("Build took {}", printable_time(time_taken));
+	let cmd = args[1].clone();
+	let compiler_thread = thread::spawn(move || Command::new(cmd).args(&args[2..]).status());
 
-	log_single(&start_time);
-	print_day();
-	println!();
+	let mut exit_status = None;
+	loop {
+		if let Ok(()) = recv_ctrlc.try_recv() {
+			println!("\nCompilation killed");
+			break;
+		}
+		if compiler_thread.is_finished() {
+			exit_status = Some(compiler_thread.join());
+			break;
+		}
+		thread::sleep(Duration::from_millis(10));
+	}
 
-	println!("{:?}", exit_status);
-	if let Some(status) = exit_status.ok().and_then(|s| s.code()) {
-		exit(status);
+	{
+		let time_taken = start_time.elapsed().unwrap().as_millis() as i64;
+		println!("\nBuild took {}", printable_time(time_taken));
+
+		log_single(start_time);
+		print_day();
+		println!();
+
+		if let Some(exit_status) = exit_status {
+			if let Ok(Ok(status)) = exit_status {
+				println!("exit status: {:?}", status.code());
+				exit(status.code().unwrap_or_default());
+			} else {
+				print!("invalid exit status: {exit_status:?}");
+			}
+		} else {
+			exit(1);
+		}
 	}
 }
 
-fn log_single(start: &SystemTime) -> Option<()> {
+fn log_single(start: SystemTime) -> Option<()> {
 	let start_time = start.duration_since(UNIX_EPOCH).ok()?.as_millis();
 	let duration = start.elapsed().ok()?.as_millis();
 	let mut history = fs::read_to_string("compiler_history.txt").unwrap_or_default();
-	history.push_str(&format!("{}:{}\n", start_time, duration));
+	history.push_str(&format!("{start_time}:{duration}\n"));
 	let mut f = File::create("compiler_history.txt").unwrap();
 	f.write_all(history.as_bytes()).unwrap();
 	Some(())
@@ -68,11 +96,11 @@ fn print_day() -> Option<()> {
 			wasted_today += duration;
 		}
 		if first_date.is_empty() {
-			first_date = format!("{:?}", date)[..10].to_owned();
+			first_date = format!("{date:?}")[..10].to_owned();
 		}
 	}
 	println!("Total wasted today: {}", printable_time(wasted_today));
-	println!("Since {}: {}", first_date, printable_time(wasted));
+	println!("Since {first_date}: {}", printable_time(wasted));
 	Some(())
 }
 
@@ -81,10 +109,10 @@ fn printable_time(ms: i64) -> String {
 	let mins = ms / (60 * 1000) % 60;
 	let hours = ms / (60 * 60 * 1000);
 	if hours > 0 {
-		format!("{}h {}m {}s", hours, mins, secs)
+		format!("{hours}h {mins}m {secs}s")
 	} else if mins > 0 {
-		format!("{}m {}s", mins, secs)
+		format!("{mins}m {secs}s")
 	} else {
-		format!("{}.{:03}s", secs, ms % 1000)
+		format!("{secs}.{:03}s", ms % 1000)
 	}
 }
