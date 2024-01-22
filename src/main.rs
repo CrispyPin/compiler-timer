@@ -76,31 +76,45 @@ fn log_single(start: SystemTime) -> Option<()> {
 }
 
 fn print_day() -> Option<()> {
-	let start_time = SystemTime::now()
-		.duration_since(UNIX_EPOCH)
-		.ok()?
-		.as_millis();
-	let today = NaiveDateTime::from_timestamp_millis(start_time as i64)?;
 	let history = fs::read_to_string("compiler_history.txt").unwrap_or_default();
 
-	let mut wasted = 0;
-	let mut wasted_today = 0;
+	let mut wasted_total = 0;
+	let mut by_day = Vec::new();
+	let mut last_date = None;
 	let mut first_date = String::new();
 	for line in history.lines() {
 		let (time, duration) = line.split_once(':')?;
 		let time: i64 = time.parse().ok()?;
 		let duration: i64 = duration.parse().ok()?;
 		let date = NaiveDateTime::from_timestamp_millis(time)?;
-		wasted += duration;
-		if date.date() == today.date() {
-			wasted_today += duration;
+
+		wasted_total += duration;
+
+		if Some(date.date()) != last_date {
+			last_date = Some(date.date());
+			by_day.push(0);
 		}
+		*by_day.last_mut().unwrap() += duration;
+
 		if first_date.is_empty() {
 			first_date = format!("{date:?}")[..10].to_owned();
 		}
 	}
-	println!("Total wasted today: {}", printable_time(wasted_today));
-	println!("Since {first_date}: {}", printable_time(wasted));
+	println!(
+		"Total wasted today: {}",
+		printable_time(*by_day.last().unwrap())
+	);
+	if by_day.len() >= 5 {
+		println!(
+			"5 day average: {}",
+			printable_time(by_day[by_day.len() - 5..].iter().sum::<i64>() / 5)
+		);
+	}
+	println!(
+		"Overall average: {}",
+		printable_time(wasted_total / by_day.len() as i64)
+	);
+	println!("Since {first_date}: {}", printable_time(wasted_total));
 	Some(())
 }
 
