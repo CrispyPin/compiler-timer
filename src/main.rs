@@ -76,7 +76,10 @@ fn log_single(start: SystemTime) -> Option<()> {
 }
 
 fn print_day() -> Option<()> {
-	let history = fs::read_to_string("compiler_history.txt").unwrap_or_default();
+	let Ok(history) = fs::read_to_string("compiler_history.txt") else {
+		println!("No history in this directory.");
+		return None;
+	};
 
 	let mut wasted_total = 0;
 	let mut by_day = Vec::new();
